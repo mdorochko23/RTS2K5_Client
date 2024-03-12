@@ -1,0 +1,49 @@
+**Called from the frmruncanot
+**05/11/17 - removed RIGHT(ALLTRIM(CL_CODE),1)=="C" from CA_HSCOUNT  #62558
+**2/23/07 - added the dbo.GetEndDayNoticeCA 
+PARAMETERS d_RunDate, rtReprint
+
+*-- 11/13/2020 MD added RTreprint #186387
+IF PCOUNT()<2
+   rtReprint=0
+ENDIF 
+rtReprint =NVL(rtReprint,0)
+IF TYPE("rtReprint")<>"N"
+	rtReprint=convertToNum(rtReprint)
+ENDIF 
+	
+*-- 11/13/2020 MD added RTreprint #186387
+
+LOCAL l_RetVal AS Boolean, l_done AS Boolean, C_STR AS STRING
+oMed = CREATEOBJECT("generic.medgeneric")
+STORE .F. TO l_RetVal, l_done
+
+*-- 11/13/2020 MD added RTreprint #186387
+IF NVL(rtReprint,0)>0
+	C_STR="exec dbo.GetEndDayNoticeCAReprint "+ALLTRIM(STR(rtReprint))+",'" + DTOC(d_RunDate)  + "'" 
+else	
+	C_STR="exec dbo.GetEndDayNoticeCA '" + DTOC(d_RunDate)  + "'" 
+ENDIF 	
+	
+l_done=oMed.sqlexecute(C_STR, "CANotice")
+IF l_done THEN
+	l_RetVal=.T.
+	=CURSORSETPROP("KeyFieldList", "ID_Tblpsnotice,Cl_code, TXN_DATE,tag,RQ_AT_CODE,USER_CODE,PRINTED ", "CANotice")
+	INDEX ON CL_CODE TAG CL_CODE ADDITIVE
+	INDEX ON ALLTRIM(USER_CODE)+ALLTRIM(CL_CODE) FOR .NOT.PRINTED TAG TOPRINT ADDITIVE
+	INDEX ON ALLTRIM(USER_CODE)+ALLTRIM(CL_CODE) TAG REPRINT ADDITIVE
+	INDEX ON RQ_AT_CODE TAG RQ_AT_CODE ADDITIVE	
+	INDEX ON DTOC( Txn_Date) + Cl_Code 	UNIQUE FOR NOT Printed TAG ca_cases
+	INDEX ON DTOC( Txn_Date) + Cl_Code 	UNIQUE FOR NOT Printed AND hs_notice TAG ca_hscases
+	INDEX ON CL_CODE+DTOC(TXN_DATE)+STR(TAG) TAG CLTXNTAG ADDITIVE
+	INDEX ON DTOC(TXN_DATE) TAG TXN_DATE ADDITIVE
+	INDEX ON CL_CODE+DTOC(TXN_DATE) TAG NTCLIST ADDITIVE
+	INDEX ON DTOC(TXN_DATE)+CL_CODE FOR .NOT.PRINTED TAG CA_COUNT ADDITIVE
+	INDEX ON DTOC(TXN_DATE)+CL_CODE FOR .NOT.PRINTED.AND.HS_NOTICE TAG CA_HSCOUNT ADDITIVE
+	**INDEX ON DTOC(TXN_DATE)+CL_CODE FOR .NOT.PRINTED.AND.RIGHT(ALLTRIM(CL_CODE),1)=="C".AND.HS_NOTICE TAG CA_HSCOUNT ADDITIVE
+	INDEX ON CL_CODE+"*"+STR(TAG) TAG CLTAG ADDITIVE
+
+
+ENDIF
+RETURN l_RetVal
+
